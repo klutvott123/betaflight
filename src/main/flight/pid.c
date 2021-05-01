@@ -1030,11 +1030,6 @@ void FAST_CODE pidController(const pidProfile_t *pidProfile, timeUs_t currentTim
 #endif
         pidRuntime.previousPidSetpoint[axis] = currentPidSetpoint;
 
-
-#ifdef USE_RC_SMOOTHING_FILTER
-        pidSetpointDelta = applyRcSmoothingFfFilter(axis, pidSetpointDelta);
-#endif // USE_RC_SMOOTHING_FILTER
-
         // -----calculate D component
         // disable D if launch control is active
         if ((pidRuntime.pidCoefficient[axis].Kd > 0) && !launchControlActive) {
@@ -1118,6 +1113,9 @@ void FAST_CODE pidController(const pidProfile_t *pidProfile, timeUs_t currentTim
 #else
             pidData[axis].F = feedForward;
 #endif
+#ifdef USE_RC_SMOOTHING_FILTER
+            pidData[axis].F = applyRcSmoothingFfFilter(axis, pidData[axis].F);
+#endif // USE_RC_SMOOTHING_FILTER
         } else {
             pidData[axis].F = 0;
         }

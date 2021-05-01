@@ -439,12 +439,14 @@ static FAST_CODE uint8_t processRcSmoothingFilter(void)
             rcSmoothingData.ffCutoffFrequency = rcSmoothingData.ffCutoffSetting;
         }
 
-        calculateCutoffs = rcSmoothingAutoCalculate();
+        if (rxConfig()->rc_smoothing_mode) {
+            calculateCutoffs = rcSmoothingAutoCalculate();
 
-        // if we don't need to calculate cutoffs dynamically then the filters can be initialized now
-        if (!calculateCutoffs) {
-            rcSmoothingSetFilterCutoffs(&rcSmoothingData);
-            rcSmoothingData.filterInitialized = true;
+            // if we don't need to calculate cutoffs dynamically then the filters can be initialized now
+            if (!calculateCutoffs) {
+                rcSmoothingSetFilterCutoffs(&rcSmoothingData);
+                rcSmoothingData.filterInitialized = true;
+            }
         }
     }
 
@@ -486,9 +488,11 @@ static FAST_CODE uint8_t processRcSmoothingFilter(void)
                         // accumlate the sample into the average
                         if (accumulateSample) {
                             if (rcSmoothingAccumulateSample(&rcSmoothingData, currentRxRefreshRate)) {
-                                // the required number of samples were collected so set the filter cutoffs
-                                rcSmoothingSetFilterCutoffs(&rcSmoothingData);
-                                rcSmoothingData.filterInitialized = true;
+                                // the required number of samples were collected so set the filter cutoffs, but only if smoothing is active
+                                if (rxConfig()->rc_smoothing_mode) {
+                                    rcSmoothingSetFilterCutoffs(&rcSmoothingData);
+                                    rcSmoothingData.filterInitialized = true;
+                                }
                                 validRxFrameTimeMs = 0;
                             }
                         }
@@ -525,14 +529,13 @@ static FAST_CODE uint8_t processRcSmoothingFilter(void)
         DEBUG_SET(DEBUG_RC_SMOOTHING, 3, rcSmoothingData.averageFrameTimeUs);
     }
 
-    // each pid loop apply the last received channel value to the filter
-    // each pid loop, apply the last received channel value to the filter - thanks @klutvott
+    // each pid loop, apply the last received channel value to the filter, if initialised - thanks @klutvott
     for (updatedChannel = 0; updatedChannel < PRIMARY_CHANNEL_COUNT; updatedChannel++) {
         float *dst = updatedChannel == THROTTLE ? &rcCommand[updatedChannel] : &setpointRate[updatedChannel];
-        if (rcSmoothingData.filterInitialized && rxConfig()->rc_smoothing_mode) {
+        if (rcSmoothingData.filterInitialized) {
             *dst = pt3FilterApply(&rcSmoothingData.filter[updatedChannel], rxDataToSmooth[updatedChannel]);
         } else {
-            // If filter isn't initialized yet then use the actual unsmoothed rx channel data
+            // If filter isn't initialized yet, as in smoothing off, use the actual unsmoothed rx channel data
             *dst = rxDataToSmooth[updatedChannel];
         }
     }
